@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "插件路由信任审计",
-    "description": "只读探测 DSH 端口上插件的 HTTP 路由是否做了鉴权栅栏，判定 fenced / open / absent / unknown。不发写请求，不改配置。"
+    "description": "自动发现已装插件真正注册的 HTTP 路由，只读探测它们是否做了鉴权栅栏，判定 fenced / open / absent / unknown。不发写请求，不改配置。"
   }
 }

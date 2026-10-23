@@ -55,6 +55,32 @@ dsh plugin --profile <你的profile> add https://github.com/Anguis-L/dsh-plugin-
 
 一个审计工具如果自己开了个裸奔的接口，就是它存在的意义本身的笑话。所以本插件**只注册一个 Host 工具，没有 `webServer.register`**。
 
+## 自动发现路由（0.2.0 起）
+
+0.1.x 里探的是两条**硬编码**路径，其中一条（`/api/our-free-model/status`）根本不存在 —— **一半的报告是编的**。
+
+0.2.0 改成从已安装插件的代码里**读出它们真正注册的路由**：
+
+- 匹配 `<任何别名>.register({ kind, path, handler })` —— 不能只匹配 `webServer.register`，因为实际代码普遍先起别名（`const server = scoped.webServer` 再 `server.register(...)`）。实测：严格匹配只找到 1 条，放宽后找到 3 条。
+- 遇到 `kind: 'prefix'` 会**连带探测子路径**（`/status`、`/config`）。这一步不是锦上添花：实测 `/api/bili-duty` 返回 **404**，而同一插件的 `/api/bili-duty/status` 返回 **200 无凭据** —— 只探前缀根会把一个敞开的接口报成"无风险"。
+- 报告里的 `source` 字段说明路径来源：`discovered` / `explicit` / `fallback`。**`fallback` 表示没读到 profile 目录，那次不算完整审计**，会额外带一条 `caveat`。
+
+实测一次输出（本机装了 2 个插件）：
+
+```
+source=discovered  probed=7  summary={"open":2,"fenced":4,"absent":1,"unknown":0}
+
+  absent   404  dsh-bili-scroll      /api/bili-duty
+  open     200  dsh-bili-scroll      /api/bili-duty/status
+  open     200  dsh-bili-scroll      /api/bili-duty/config
+  fenced   401  dsh-our-free-model   /api/our-free-model
+  fenced   401  dsh-our-free-model   /api/our-free-model/status
+  fenced   401  dsh-our-free-model   /api/our-free-model/config
+  fenced   401  dsh-our-free-model   /api/our-free-model/events
+```
+
+同一个端口上，两个插件一个 `open` 一个 `fenced` —— **这就是本工具存在的理由**。
+
 ## 只读
 
 只发 `GET`，**从不发写请求**，所以审计不会改变它正在检查的状态。
@@ -62,9 +88,10 @@ dsh plugin --profile <你的profile> add https://github.com/Anguis-L/dsh-plugin-
 ## 用法
 
 ```
-plugin_trust_audit()                                  # 审计当前 webServer 的回环地址
+plugin_trust_audit()                                                  # 自动发现 + 探测
 plugin_trust_audit({ origin: 'http://127.0.0.1:61782' })
-plugin_trust_audit({ paths: ['/api/my-plugin/config'] })
+plugin_trust_audit({ profileDir: 'C:/Users/you/.dsh/profiles/desktop' })  # 指定要扫哪个 profile
+plugin_trust_audit({ paths: ['/api/my-plugin/config'] })                  # 只探指定路径
 ```
 
 只审计回环地址。对**它机**地址发起探测属于未授权扫描，本工具不做。
@@ -72,3 +99,9 @@ plugin_trust_audit({ paths: ['/api/my-plugin/config'] })
 ## 局限
 
 判定基于响应状态码，不构成完整安全审计：它不能证明一条返回 401 的路由内部没有别的洞，也不能发现只在特定方法/参数下才触发的问题。
+
+自动发现是**读代码猜路径**，不是运行时注册表查询（宿主没把这个信息暴露出来）。所以：
+
+- 路径写得很动态的插件（`path: '/api/' + name`）可能扫不到；
+- 子路径只探 `/status`、`/config` 两个常见名，其他端点需要显式传 `paths`；
+- 扫不到时报告会明确写 `source: fallback` + `caveat`，**不会假装是一次完整审计**。

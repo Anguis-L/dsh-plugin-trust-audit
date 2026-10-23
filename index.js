@@ -23,16 +23,118 @@
  *   only genuinely dangerous outcome here.
  */
 
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 /** Hostnames a same-machine caller can legitimately use. */
 const LOOPBACK_NAMES = new Set(['127.0.0.1', 'localhost', '[::1]', '::1'])
 
 /** Default probe paths: the prefixes the installed community plugins use today. */
-const DEFAULT_PATHS = [
+/**
+ * Fallback probe paths, used only when discovery finds nothing.
+ *
+ * The plugin used to hard-code two paths, one of which (`/api/our-free-model/
+ * status`) did not even exist — so half the report was fiction. Discovery
+ * below replaces guessing; this list survives only so the tool still says
+ * something useful when node_modules cannot be read.
+ */
+const FALLBACK_PATHS = [
   '/api/bili-duty/status',
-  '/api/our-free-model/status',
+  '/api/our-free-model',
 ]
 
 const PROBE_TIMEOUT_MS = 4000
+
+/**
+ * Sub-paths a `prefix` route is likely to serve.
+ *
+ * Probing only the prefix root is actively misleading: measured on a live host,
+ * `GET /api/bili-duty` answered 404 while `GET /api/bili-duty/status` on the
+ * SAME plugin answered 200 with no credentials. A 404 at the root would have
+ * read as "no risk" while the real endpoint was wide open.
+ */
+const PROBE_SUFFIXES = ['/status', '/config']
+
+/**
+ * Discover the HTTP routes plugins actually register, by reading their code.
+ *
+ * Route dispatch is longest-prefix-wins, so any plugin prefix longer than the
+ * kernel's `/api` runs before the kernel's admission check. Which plugin does
+ * that — and at which path — is not exposed anywhere at runtime, so the only
+ * honest source is the registrations in the installed packages.
+ *
+ * Two matchers, because the carrier is reachable under many local names: the
+ * service is commonly aliased before use (`const server = scoped.webServer`,
+ * then `server.register(...)`), so matching the literal `webServer.register`
+ * misses real routes. Measured on a live profile: the strict form found 1
+ * route, the relaxed form finds 3.
+ */
+function discoverRoutes(profileDir, maxDepth = 6) {
+  const found = []
+  const seen = new Set()
+  const registerCall = /\.register\s*\(\s*\{/g
+  const pathField = /path\s*:\s*['"]([^'"]+)['"]/
+  const kindField = /kind\s*:\s*['"](exact|prefix)['"]/
+  const skipDirs = new Set(['node_modules', 'dist', '.git'])
+
+  let packages
+  try {
+    packages = readdirSync(profileDir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => entry.name)
+  } catch {
+    return found
+  }
+
+  for (const pkg of packages) {
+    // Plugin packages only; the kernel's own scope packages are not routes we audit.
+    if (!pkg.startsWith('dsh') && !pkg.startsWith('@')) continue
+    const pkgDir = join(profileDir, pkg)
+    const walk = (dir, depth) => {
+      if (depth > maxDepth) return
+      let entries
+      try {
+        entries = readdirSync(dir, { withFileTypes: true })
+      } catch {
+        return
+      }
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          if (!skipDirs.has(entry.name)) walk(join(dir, entry.name), depth + 1)
+          continue
+        }
+        if (!entry.name.endsWith('.js') && !entry.name.endsWith('.mjs')) continue
+        let text
+        try {
+          text = readFileSync(join(dir, entry.name), 'utf8')
+        } catch {
+          continue
+        }
+        if (!text.includes('.register')) continue
+        registerCall.lastIndex = 0
+        let match
+        while ((match = registerCall.exec(text)) !== null) {
+          const window = text.slice(match.index, match.index + 500)
+          const pathMatch = pathField.exec(window)
+          if (!pathMatch) continue
+          const routePath = pathMatch[1]
+          if (!routePath.startsWith('/')) continue
+          const key = `${pkg}|${routePath}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          const kindMatch = kindField.exec(window)
+          found.push({
+            pkg,
+            path: routePath,
+            kind: kindMatch ? kindMatch[1] : 'unknown',
+          })
+        }
+      }
+    }
+    walk(pkgDir, 0)
+  }
+  return found
+}
 
 /**
  * Classify one probe result.
@@ -117,7 +219,7 @@ function resolveOrigin(ctx, explicit) {
 }
 
 /** Build the audit report for one origin and a set of paths. */
-async function audit(ctx, { origin, paths }) {
+async function audit(ctx, { origin, paths, profileDir }) {
   const target = resolveOrigin(ctx, origin)
   if (!target) {
     return {
@@ -127,11 +229,52 @@ async function audit(ctx, { origin, paths }) {
     }
   }
 
-  const list = Array.isArray(paths) && paths.length > 0 ? paths : DEFAULT_PATHS
+  // Prefer explicitly requested paths, then what the installed packages
+  // actually register, and only then the fallback list. Reporting a
+  // hard-coded guess as if it were discovered would be worse than saying
+  // less: a wrong `absent` verdict reads as "no risk".
+  const rawDir = typeof profileDir === 'string' && profileDir.trim()
+    ? profileDir.trim()
+    : process.env.DSH_PROFILE_DIR
+  // Accept either the profile root or its node_modules: a caller who passes the
+  // profile directory (the obvious thing to pass) must not silently get an
+  // empty scan. Measured: passing the root found nothing while the same scan
+  // against <root>/node_modules found 3 routes.
+  const dir = rawDir
+    ? (/[\\/]node_modules[\\/]?$/.test(rawDir) ? rawDir : join(rawDir, 'node_modules'))
+    : undefined
+  const discovered = dir ? discoverRoutes(dir) : []
+
+  /** @type {{path: string, pkg?: string}[]} */
+  let list
+  let source
+  if (Array.isArray(paths) && paths.length > 0) {
+    list = paths.map(p => ({ path: String(p) }))
+    source = 'explicit'
+  } else if (discovered.length > 0) {
+    // A `prefix` route serves everything beneath it, so probing only its root
+    // under-reports. Expand prefixes into their likely endpoints; keep `exact`
+    // routes as-is.
+    const expanded = []
+    for (const d of discovered) {
+      expanded.push({ path: d.path, pkg: d.pkg })
+      if (d.kind === 'prefix') {
+        for (const suffix of PROBE_SUFFIXES) {
+          expanded.push({ path: d.path.replace(/\/$/, '') + suffix, pkg: d.pkg })
+        }
+      }
+    }
+    list = expanded
+    source = 'discovered'
+  } else {
+    list = FALLBACK_PATHS.map(p => ({ path: p }))
+    source = 'fallback'
+  }
+
   const findings = []
 
-  for (const raw of list) {
-    const path = String(raw)
+  for (const entry of list) {
+    const path = entry.path
     // Three probes per path, each answering a different question.
     const plain = await probe(`${target}${path}`, {})
     // A browser page on ANY localhost port can reach this if only the hostname
@@ -143,6 +286,7 @@ async function audit(ctx, { origin, paths }) {
     const verdict = verdictFor(plain.status)
     findings.push({
       path,
+      pkg: entry.pkg,
       verdict,
       status: {
         unauthenticated: plain.status ?? null,
@@ -161,6 +305,10 @@ async function audit(ctx, { origin, paths }) {
     ok: true,
     origin: target,
     probed: findings.length,
+    // State where the path list came from, so a `fallback` report is never
+    // mistaken for a full audit of what is installed.
+    source,
+    discoveredFrom: dir || null,
     summary: {
       open: open.length,
       fenced: findings.filter(f => f.verdict === 'fenced').length,
@@ -173,6 +321,9 @@ async function audit(ctx, { origin, paths }) {
       : unknown.length > 0
         ? `没有发现 open，但有 ${unknown.length} 条无法判定 —— 不要据此认为安全。`
         : '未发现无鉴权可达的路由。',
+    ...(source === 'fallback'
+      ? { caveat: '没能读取 profile 目录（或里面没有注册 HTTP 路由的插件），本次只探测了兜底路径 —— 这不是一次完整审计。请显式传入 profileDir。' }
+      : {}),
     disclaimer: '本工具只做只读 GET/HEAD 探测，不改配置、不触发写操作；判定基于响应状态码，不构成完整安全审计。',
   }
 }
@@ -196,8 +347,11 @@ export function apply(ctx) {
       name: 'plugin_trust_audit',
       description:
         '只读审计：检查 DSH 端口上插件的 HTTP 路由是否真的做了鉴权栅栏。'
-        + '对每个候选路径分别发「无凭据」「跨端口 Origin」「跨站 Origin」三组 GET 探测，'
-        + '判定为 fenced(401/403) / open(200 无凭据) / absent(404) / unknown。\n'
+        + '默认从已安装插件的代码里**自动发现**它们真正注册的路由，'
+        + '对每条分别发「无凭据」「跨端口 Origin」「跨站 Origin」三组 GET 探测，'
+        + '判定为 fenced(401/403) / open(2xx 无凭据) / absent(404) / unknown。\n'
+        + '报告里的 `source` 字段说明路径列表的来源（discovered / explicit / fallback）——'
+        + '`fallback` 表示没读到 profile 目录，那次不算完整审计。\n'
         + '⚠️ 只探测回环地址；不发任何写请求；unknown 不等于安全。',
       parameters: {
         origin: {
@@ -206,8 +360,12 @@ export function apply(ctx) {
         },
         paths: {
           type: 'array',
-          description: '要探测的路径列表。省略时探测已装社区插件的默认前缀。',
+          description: '显式指定要探测的路径，省略则自动发现。',
           items: { type: 'string' },
+        },
+        profileDir: {
+          type: 'string',
+          description: '要扫描的 profile 目录（其 node_modules 里是已安装插件）。省略时取环境变量 DSH_PROFILE_DIR。',
         },
       },
       output: textOutput,
@@ -215,6 +373,7 @@ export function apply(ctx) {
         const report = await audit(ctx, {
           origin: args?.origin,
           paths: args?.paths,
+          profileDir: args?.profileDir,
         })
         // The host rejects non-JSON values, so normalise before returning.
         try { return JSON.parse(JSON.stringify(report)) } catch { return { ok: false, reason: 'report not serialisable' } }

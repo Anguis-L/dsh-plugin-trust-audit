@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Plugin Route Trust Audit",
-    "description": "Read-only probe of whether plugins' HTTP routes are actually fenced, reporting fenced / open / absent / unknown. No writes, no config changes."
+    "description": "Discovers the HTTP routes installed plugins actually register, then probes them read-only to report fenced / open / absent / unknown. No writes, no config changes."
   }
 }
