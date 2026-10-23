@@ -1,0 +1,36 @@
+{
+  "name": "dsh-plugin-trust-audit",
+  "version": "0.1.0",
+  "description": "Audit whether plugins' HTTP routes are actually fenced: probe a loopback DSH port unauthenticated and report fenced / open / unknown per route.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "security",
+    "audit",
+    "trust-fence"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT"
+}

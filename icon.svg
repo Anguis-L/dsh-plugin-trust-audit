@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Plugin Route Trust Audit">
+  <defs>
+    <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f6fed"/>
+      <stop offset="1" stop-color="#17408f"/>
+    </linearGradient>
+  </defs>
+  <!-- Shield: the trust boundary being audited -->
+  <path d="M32 4 55 13v20c0 14-10 24-23 27C19 57 9 47 9 33V13L32 4Z" fill="url(#shield)"/>
+  <!-- Magnifier: the audit is an inspection, not a modification -->
+  <circle cx="29" cy="28" r="10.5" fill="none" stroke="#ffffff" stroke-width="3.2"/>
+  <line x1="36.6" y1="35.6" x2="46" y2="45" stroke="#ffffff" stroke-width="3.8" stroke-linecap="round"/>
+  <!-- Probe pulse inside the lens: a read-only GET -->
+  <path d="M23 28.5h3l2-4 2.5 8 2-4h3" fill="none" stroke="#8fe3c2" stroke-width="2.2"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,4 @@
+- insert:
+    - id: plugin-trust-audit
+      name: 'dsh-plugin-trust-audit'
+      config: {}
