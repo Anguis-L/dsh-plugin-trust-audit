@@ -1,8 +1,7 @@
-﻿{
+{
   "name": "dsh-plugin-trust-audit",
-  "version": "0.1.0",
-  "description": "Audit whether plugins' HTTP routes are actually fenced: probe a loopback DSH port unauthenticated and report fenced / open / unknown per route.",
-  "private": true,
+  "version": "0.1.1",
+  "description": "DSH 插件：只读审计插件 HTTP 路由是否真的做了鉴权栅栏（fenced / open / absent / unknown）",
   "type": "module",
   "exports": {
     ".": "./index.js",
@@ -15,6 +14,7 @@
     "locale/*.json",
     "icon.svg",
     "README.md",
+    "LICENSE",
     "sponsors.json"
   ],
   "keywords": [
@@ -25,6 +25,11 @@
     "audit",
     "trust-fence"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Anguis-L/dsh-plugin-trust-audit.git"
+  },
+  "homepage": "https://github.com/Anguis-L/dsh-plugin-trust-audit#readme",
   "engines": {
     "node": ">=22"
   },
