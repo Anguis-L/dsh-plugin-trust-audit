@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "privacyNote": "贡献者可仅使用化名（alias），地址公开与否自选；所有信息由贡献者自行声明，未经生态认证前一律标记为未验证。插件不代收任何资金，打赏为纯 P2P 直连。",
+  "contributors": [
+    {
+      "id": "anguis-l",
+      "alias": "anguis_l",
+      "verified": false,
+      "bio": "dsh-plugin-trust-audit 作者：把「插件路由到底有没有做鉴权栅栏」变成可测量的",
+      "ethics": { "voluntary": true, "paidWall": false },
+      "tips": {
+        "usdc": "",
+        "chains": ["polygon"],
+        "fiat": []
+      },
+      "subscriptions": []
+    }
+  ],
+  "plugins": [
+    {
+      "pluginId": "dsh-plugin-trust-audit",
+      "name": "插件路由信任审计",
+      "contributorId": "anguis-l",
+      "sponsors": []
+    }
+  ]
+}
