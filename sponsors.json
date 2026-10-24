@@ -11,7 +11,13 @@
       "tips": {
         "usdc": "",
         "chains": ["polygon"],
-        "fiat": []
+        "fiat": [],
+        "qrCodes": [
+          {
+            "label": "支付宝",
+            "image": "https://raw.githubusercontent.com/Anguis-L/dsh-plugin-trust-audit/master/alipay-qr.png"
+          }
+        ]
       },
       "subscriptions": []
     }

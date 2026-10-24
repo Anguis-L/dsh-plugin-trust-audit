@@ -105,3 +105,15 @@ plugin_trust_audit({ paths: ['/api/my-plugin/config'] })                  # 只�
 - 路径写得很动态的插件（`path: '/api/' + name`）可能扫不到；
 - 子路径只探 `/status`、`/config` 两个常见名，其他端点需要显式传 `paths`；
 - 扫不到时报告会明确写 `source: fallback` + `caveat`，**不会假装是一次完整审计**。
+
+---
+
+## 关于
+
+如果这个工具帮你发现了什么问题，那就是它存在的意义。
+
+如果你愿意请我喝杯咖啡，可以扫这个码 —— **完全自愿，不给也照样能看能用**：
+
+<img src="alipay-qr.png" alt="支付宝收款码" width="200">
+
+相关：[DSH 插件真实下载榜](https://anguis-l.github.io/dsh-ranking/) —— 用 npm 真实下载量给插件排名

@@ -15,7 +15,8 @@
     "icon.svg",
     "README.md",
     "LICENSE",
-    "sponsors.json"
+    "sponsors.json",
+    "alipay-qr.png"
   ],
   "keywords": [
     "dsh",
