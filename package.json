@@ -1,7 +1,7 @@
 {
   "name": "dsh-plugin-trust-audit",
-  "version": "0.2.0",
-  "description": "DSH 插件：自动发现已装插件真正注册的 HTTP 路由，只读探测它们是否真的做了鉴权栅栏（fenced / open / absent / unknown）",
+  "version": "0.3.0",
+  "description": "DSH 插件：自动发现已装插件真正注册的 HTTP 路由，只读探测它们是否真的做了鉴权栅栏（fenced / open / absent / unknown），并对路由所在源码做静态鉴权预检作为交叉验证",
   "type": "module",
   "exports": {
     ".": "./index.js",

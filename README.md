@@ -81,6 +81,39 @@ source=discovered  probed=7  summary={"open":2,"fenced":4,"absent":1,"unknown":0
 
 同一个端口上，两个插件一个 `open` 一个 `fenced` —— **这就是本工具存在的理由**。
 
+## 0.3.0：加静态预检，修掉一个假阳性
+
+0.2.0 只靠**网络探测**判定。后来我用另一个一次性脚本读代码，只搜了 `requestRejection` / `connection.admit`，
+就把 `Ebony-Vinyl/dsh-our-free-model`（42k★）报成「2 条路由无鉴权」—— **错的**。
+它用的是 `rejectionFor(req, fenceConnection, …)`，另一种写法，实际有 **18 处**鉴权代码。
+
+假阳性比漏报危险：它会把一个做了防护的维护者公开点名成"不在意安全"。
+
+所以 0.3.0 在每条路由上附带**静态证据**：
+
+```
+staticEvidence: {
+  fenceHits: 6,
+  lines: [
+    "L1020: const fenceConnection = connectionAdmissionView(() => optional('connection'))",
+    "L1063: const logAdmissionRejection = surface => ({ status, source, reason }) => {",
+    "L1369: connection: fenceConnection,",
+    "L1370: onAdmissionRejection: logAdmissionRejection('settings API'),"
+  ],
+  caveat: '静态代码里发现了鉴权实现，但网络探测未看到 401/403。…'
+}
+```
+
+两条设计规则：
+
+1. **白名单宁宽勿窄**。漏报只是少报一个，误报会伤害无辜的维护者。
+2. **静态证据只能软化判定，不能硬化**。网络探测看到 `open` 而代码里有栅栏时，`verdict` 不变，
+   只是多带一条 `staticEvidence` 提示——因为探测路径可能没命中真正受保护的端点。
+
+顺带收紧了一个模式：0.3.0 之前 `authorize` / `isAuthorized` 会匹配到
+`authorized: false` 这种**会话对象的数据字段**，把命中数从 6 虚涨到 15，证据反而没法看。
+现在只认 `isAuthorized(` 这种真正的调用形态。
+
 ## 只读
 
 只发 `GET`，**从不发写请求**，所以审计不会改变它正在检查的状态。

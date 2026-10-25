@@ -56,6 +56,59 @@ const PROBE_TIMEOUT_MS = 4000
 const PROBE_SUFFIXES = ['/status', '/config']
 
 /**
+ * Static pre-check: does this file contain ANY known fence implementation?
+ *
+ * WHY THIS EXISTS (a mistake worth recording):
+ * A one-off audit script searched only for `requestRejection` / `connection.admit`
+ * and reported `Ebony-Vinyl/dsh-our-free-model` (42k★) as having 2 unfenced
+ * routes. Wrong — that plugin fences via `rejectionFor(req, fenceConnection, …)`,
+ * an entirely different spelling. It had 18 fence hits in total.
+ *
+ * A false "you are open" is worse than a false "you are fenced": it gets a
+ * maintainer who did the work publicly named as careless. So this list is
+ * deliberately over-inclusive, and its verdict is only ever used to *downgrade*
+ * a network verdict, never to upgrade one.
+ */
+const FENCE_PATTERNS = [
+  /requestRejection/,
+  /rejectionFor\s*\(/,
+  /connection\s*\.\s*admit/,
+  /\.admit\s*\(/,
+  /logAdmissionRejection/,
+  /fenceConnection/,
+  /writeHead\s*\(\s*401/,
+  /writeHead\s*\(\s*403/,
+  /statusCode\s*=\s*40[13]/,
+  /peer\s*===/,
+  /checkOrigin/,
+  /verifyToken/,
+  /requireAuth/,
+  // NOTE: bare `authorize` / `isAuthorized` were dropped. Measured on
+  // `our-free-model`, they matched `authorized: false` — a data field on a
+  // session object, not a fence call. A pattern that fires on state
+  // declarations inflates the hit count and makes the evidence useless.
+  /\bisAuthorized\s*\(/,
+]
+
+/**
+ * Count fence hits in a source file. Returns the lines, so a report can cite
+ * evidence instead of asking the reader to trust a regex.
+ */
+function fenceEvidence(text) {
+  const lines = text.split('\n')
+  const hits = []
+  for (let i = 0; i < lines.length; i++) {
+    for (const re of FENCE_PATTERNS) {
+      if (re.test(lines[i])) {
+        hits.push(`L${i + 1}: ${lines[i].trim().slice(0, 90)}`)
+        break
+      }
+    }
+  }
+  return hits
+}
+
+/**
  * Discover the HTTP routes plugins actually register, by reading their code.
  *
  * Route dispatch is longest-prefix-wins, so any plugin prefix longer than the
@@ -112,6 +165,9 @@ function discoverRoutes(profileDir, maxDepth = 6) {
         }
         if (!text.includes('.register')) continue
         registerCall.lastIndex = 0
+        // Static fence evidence for this file, computed once per file rather
+        // than once per route: it describes the module, not the path.
+        const evidence = fenceEvidence(text)
         let match
         while ((match = registerCall.exec(text)) !== null) {
           const window = text.slice(match.index, match.index + 500)
@@ -127,6 +183,11 @@ function discoverRoutes(profileDir, maxDepth = 6) {
             pkg,
             path: routePath,
             kind: kindMatch ? kindMatch[1] : 'unknown',
+            // Carried so the report can cite lines instead of asking the
+            // reader to trust a regex. See FENCE_PATTERNS for why this list
+            // is deliberately over-inclusive.
+            fenceHits: evidence.length,
+            fenceEvidence: evidence.slice(0, 5),
           })
         }
       }
@@ -284,6 +345,11 @@ async function audit(ctx, { origin, paths, profileDir }) {
     const crossSite = await probe(`${target}${path}`, { Origin: 'https://example.invalid' })
 
     const verdict = verdictFor(plain.status)
+    // Static evidence from reading the plugin's own code. It can only ever
+    // soften a network verdict, never harden one: a false "you are open" is
+    // the outcome that gets a careful maintainer publicly named.
+    const fenceHits = typeof entry.fenceHits === 'number' ? entry.fenceHits : 0
+    const fenceEvidence = Array.isArray(entry.fenceEvidence) ? entry.fenceEvidence : []
     findings.push({
       path,
       pkg: entry.pkg,
@@ -295,6 +361,17 @@ async function audit(ctx, { origin, paths, profileDir }) {
       },
       risk: riskFor(verdict, path),
       note: plain.error ? `探测失败：${plain.error}` : undefined,
+      ...(fenceHits > 0
+        ? {
+            staticEvidence: {
+              fenceHits,
+              lines: fenceEvidence,
+              caveat: '静态代码里发现了鉴权实现，但网络探测未看到 401/403。'
+                + '可能是探测路径未命中真正受保护的端点，也可能是栅栏在别处生效。'
+                + '此项只用于提示，不改变 verdict。',
+            },
+          }
+        : {}),
     })
   }
 
