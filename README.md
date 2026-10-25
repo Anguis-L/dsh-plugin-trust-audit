@@ -6,14 +6,23 @@
 
 ## 安装
 
-```bash
-# 方式一：从 GitHub Release 直链安装（不需要 npm 账号，不需要 git）
-dsh plugin --profile <你的profile> add \
-  https://github.com/Anguis-L/dsh-plugin-trust-audit/releases/download/v0.3.0/dsh-plugin-trust-audit-0.3.0.tgz
+**推荐**（这条形式会被 1024Store 计入安装量）：
 
-# 方式二：从 GitHub 仓库安装
+```bash
 dsh plugin --profile <你的profile> add github:Anguis-L/dsh-plugin-trust-audit
 ```
+
+或者从 Release 直链装（不需要 git，但**不计入** 1024Store 安装统计）：
+
+```bash
+dsh plugin --profile <你的profile> add \
+  https://github.com/Anguis-L/dsh-plugin-trust-audit/releases/download/v0.3.0/dsh-plugin-trust-audit-0.3.0.tgz
+```
+
+> 为什么推荐第一条：1024Store 的安装统计只认 `github:owner/repo` 这类形式，
+> 直链 URL 装上去完全一样，但不会被计数 —— 而这个计数是社区判断一个插件
+> 有没有人用的唯一公开信号。详见
+> [install-analytics](https://github.com/imsai-sh/dsh-1024store/blob/main/web/docs/install-analytics.md)。
 
 当前版本 **v0.3.0**。装完**重启一次** dsh（bundle 层要重启才组装），
 然后在会话里直接让 agent 调用 `plugin_trust_audit`。
