@@ -23,6 +23,14 @@ dsh plugin --profile <你的profile> add \
 > 直链 URL 装上去完全一样，但不会被计数 —— 而这个计数是社区判断一个插件
 > 有没有人用的唯一公开信号。详见
 > [install-analytics](https://github.com/imsai-sh/dsh-1024store/blob/main/web/docs/install-analytics.md)。
+>
+> 两种形式都实测装过。直链形式在一个干净 profile 上约 4 秒装完，
+> `dsh --profile <profile> --dump-config` 随后能看到 bundle 层：
+> ```
+> # == dsh-plugin-trust-audit
+> - id: plugin-trust-audit
+>   name: dsh-plugin-trust-audit
+> ```
 
 当前版本 **v0.3.0**。装完**重启一次** dsh（bundle 层要重启才组装），
 然后在会话里直接让 agent 调用 `plugin_trust_audit`。
