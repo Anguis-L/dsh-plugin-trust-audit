@@ -2,14 +2,21 @@
 
 只读审计：**DSH 端口上插件的 HTTP 路由，是否真的做了鉴权栅栏。**
 
+[![DSH 1024Store](https://img.shields.io/badge/1024Store-catalogued-blue)](https://deepseek1024.com/)
+
 ## 安装
 
 ```bash
-# 从 GitHub Release 直链安装（不需要 npm 账号，不需要 git）
-dsh plugin --profile <你的profile> add https://github.com/Anguis-L/dsh-plugin-trust-audit/releases/download/v0.1.0/dsh-plugin-trust-audit-0.1.0.tgz
+# 方式一：从 GitHub Release 直链安装（不需要 npm 账号，不需要 git）
+dsh plugin --profile <你的profile> add \
+  https://github.com/Anguis-L/dsh-plugin-trust-audit/releases/download/v0.3.0/dsh-plugin-trust-audit-0.3.0.tgz
+
+# 方式二：从 GitHub 仓库安装
+dsh plugin --profile <你的profile> add github:Anguis-L/dsh-plugin-trust-audit
 ```
 
-装完**重启一次** dsh（bundle 层要重启才组装），然后在会话里直接让 agent 调用 `plugin_trust_audit`。
+当前版本 **v0.3.0**。装完**重启一次** dsh（bundle 层要重启才组装），
+然后在会话里直接让 agent 调用 `plugin_trust_audit`。
 
 ## 为什么需要它
 
