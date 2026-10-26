@@ -25,6 +25,19 @@ jobs:
 
       - run: npm install -g npm@latest
 
+      # Publishing to the wrong registry is irreversible - the package name
+      # would be taken on a mirror that only reads from npmjs. setup-node
+      # points the registry at npmjs.org, but a machine-level .npmrc can
+      # still point elsewhere, so check it rather than assume.
+      - name: registry is npmjs.org
+        run: |
+          reg=$(npm config get registry)
+          echo "registry: $reg"
+          case "$reg" in
+            *registry.npmjs.org*) ;;
+            *) echo "refusing to publish to $reg" >&2; exit 1 ;;
+          esac
+
       # Fail before publishing, not after. A BOM in package.json was once
       # rejected by the host with a SyntaxError, and both `node --check` and
       # `json.loads` had already passed it.
