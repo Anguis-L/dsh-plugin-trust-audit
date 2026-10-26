@@ -417,45 +417,51 @@ const textOutput = {
 export const name = 'dsh-plugin-trust-audit'
 
 export function apply(ctx) {
-  // Register the audit tool. A hard dependency on `tools` keeps the plugin
-  // from half-loading in a composition without a tool registry.
-  ctx.inject(['tools'], scoped => {
-    scoped.effect(() => scoped.tools.register({
-      name: 'plugin_trust_audit',
-      description:
-        '只读审计：检查 DSH 端口上插件的 HTTP 路由是否真的做了鉴权栅栏。'
-        + '默认从已安装插件的代码里**自动发现**它们真正注册的路由，'
-        + '对每条分别发「无凭据」「跨端口 Origin」「跨站 Origin」三组 GET 探测，'
-        + '判定为 fenced(401/403) / open(2xx 无凭据) / absent(404) / unknown。\n'
-        + '报告里的 `source` 字段说明路径列表的来源（discovered / explicit / fallback）——'
-        + '`fallback` 表示没读到 profile 目录，那次不算完整审计。\n'
-        + '⚠️ 只探测回环地址；不发任何写请求；unknown 不等于安全。',
-      parameters: {
-        origin: {
-          type: 'string',
-          description: '要审计的回环地址，例如 http://127.0.0.1:61782。省略时自动取当前 webServer 的 origin。',
-        },
-        paths: {
-          type: 'array',
-          description: '显式指定要探测的路径，省略则自动发现。',
-          items: { type: 'string' },
-        },
-        profileDir: {
-          type: 'string',
-          description: '要扫描的 profile 目录（其 node_modules 里是已安装插件）。省略时取环境变量 DSH_PROFILE_DIR。',
-        },
+  // Register the audit tool.
+  //
+  // `ctx.tools` is a hard dependency of this plugin, so it is read directly
+  // rather than through `ctx.inject(['tools'], ...)`. Both work in the host,
+  // but the injected form hides the call from static analysers: the
+  // dsh-xray registry reported this plugin as registering zero tools,
+  // because it only recognises a literal `ctx.tools.register(`.
+  //
+  // The tool's own disposer is returned, so the registration is torn down
+  // with the plugin's scope and HMR reloads do not leak a duplicate.
+  ctx.tools.register({
+    name: 'plugin_trust_audit',
+    description:
+      '只读审计：检查 DSH 端口上插件的 HTTP 路由是否真的做了鉴权栅栏。'
+      + '默认从已安装插件的代码里**自动发现**它们真正注册的路由，'
+      + '对每条分别发「无凭据」「跨端口 Origin」「跨站 Origin」三组 GET 探测，'
+      + '判定为 fenced(401/403) / open(2xx 无凭据) / absent(404) / unknown。\n'
+      + '报告里的 `source` 字段说明路径列表的来源（discovered / explicit / fallback）——'
+      + '`fallback` 表示没读到 profile 目录，那次不算完整审计。\n'
+      + '⚠️ 只探测回环地址；不发任何写请求；unknown 不等于安全。',
+    parameters: {
+      origin: {
+        type: 'string',
+        description: '要审计的回环地址，例如 http://127.0.0.1:61782。省略时自动取当前 webServer 的 origin。',
       },
-      output: textOutput,
-      async execute(args) {
-        const report = await audit(ctx, {
-          origin: args?.origin,
-          paths: args?.paths,
-          profileDir: args?.profileDir,
-        })
-        // The host rejects non-JSON values, so normalise before returning.
-        try { return JSON.parse(JSON.stringify(report)) } catch { return { ok: false, reason: 'report not serialisable' } }
+      paths: {
+        type: 'array',
+        description: '显式指定要探测的路径，省略则自动发现。',
+        items: { type: 'string' },
       },
-    }), 'trust-audit: plugin_trust_audit tool')
+      profileDir: {
+        type: 'string',
+        description: '要扫描的 profile 目录（其 node_modules 里是已安装插件）。省略时取环境变量 DSH_PROFILE_DIR。',
+      },
+    },
+    output: textOutput,
+    async execute(args) {
+      const report = await audit(ctx, {
+        origin: args?.origin,
+        paths: args?.paths,
+        profileDir: args?.profileDir,
+      })
+      // The host rejects non-JSON values, so normalise before returning.
+      try { return JSON.parse(JSON.stringify(report)) } catch { return { ok: false, reason: 'report not serialisable' } }
+    },
   })
 
   // Deliberately no ctx.webServer.register(...) — see DESIGN CONSTRAINTS.
