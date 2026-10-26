@@ -32,6 +32,13 @@ dsh plugin --profile <你的profile> add \
 >   name: dsh-plugin-trust-audit
 > ```
 
+<!-- npm-install:this package is also published to npm; the form below is what the
+     market feed's install extractor recognises, so it is listed once the package
+     exists on the registry. -->
+```bash
+dsh plugin --profile <你的profile> add dsh-plugin-trust-audit
+```
+
 当前版本 **v0.3.0**。装完**重启一次** dsh（bundle 层要重启才组装），
 然后在会话里直接让 agent 调用 `plugin_trust_audit`。
 
