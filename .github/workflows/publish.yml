@@ -1,0 +1,43 @@
+name: Publish to npm
+
+# Trusted Publishing (OIDC): no npm token in this repo. The publisher is
+# authorised on npmjs.com against this repository, and the workflow exchanges
+# a short-lived OIDC credential for a publish grant. Needs npm >= 11.5.1.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: npm install -g npm@latest
+
+      # Fail before publishing, not after. A BOM in package.json was once
+      # rejected by the host with a SyntaxError, and both `node --check` and
+      # `json.loads` had already passed it.
+      - name: package.json has no BOM
+        run: |
+          if head -c 3 package.json | od -An -tx1 | grep -q 'ef bb bf'; then
+            echo "package.json starts with a UTF-8 BOM" >&2
+            exit 1
+          fi
+
+      # The plugin is a single ES module; make sure it at least parses before
+      # a broken build becomes a published package.
+      - name: index.js parses
+        run: node --check index.js
+
+      - run: npm publish --provenance --access public
