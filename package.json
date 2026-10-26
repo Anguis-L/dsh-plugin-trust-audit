@@ -30,7 +30,7 @@
     "type": "git",
     "url": "git+https://github.com/Anguis-L/dsh-plugin-trust-audit.git"
   },
-  "homepage": "https://github.com/Anguis-L/dsh-plugin-trust-audit#readme",
+  "homepage": "https://anguis-l.github.io/dsh-ranking/",
   "engines": {
     "node": ">=22"
   },
